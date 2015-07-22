@@ -108,11 +108,11 @@ sub run {
 }
 
 sub is_empty {
-   return ! $bytes[ rnd @bytes ];
+   return ! $bytes[ rnd ( @bytes - 1 ) ];
 }
 
 sub isnt_empty {
-   return $bytes[ rnd @bytes ];
+   return $bytes[ rnd ( @bytes - 1 ) ];
 }
 
 sub if_you_want {
