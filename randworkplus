@@ -1,0 +1,225 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+my @lines;
+my @bytes = ( 0, 0, 0, 0 );
+
+my %instructions = (
+   "Do anything" => \&do_anything,
+   "Do whatever you want" => \&do_whatever,
+   "Jump to a line" => \&jump,
+   "Jump to a line up" => \&jump_up,
+   "Jump to a line down" => \&jump_down,
+   "Go out if you want" => \&go_out_if_you_want,
+);
+
+my %arg_instructions = ( 
+   "If something is empty" => \&is_empty,
+   "If something isn't empty" => \&isnt_empty,
+   "If you want" => \&if_you_want,
+);
+
+sub rnd { # returns a random value in range 0 - shift
+   return int ( rand ( ( shift ) + 1 ) );
+}
+
+# breaks down line, returns array of instructions
+sub split_line {
+   my $line = shift;
+   my ( $instruction, @arg );
+
+   if ( defined $instructions{ $line } ) {
+      $instruction = $line;
+   } else {
+      foreach ( keys %arg_instructions ) {
+         if ( $line =~ /^\s*($_)\s+(.*?)\s*$/ ) {
+            $instruction = $1;
+            @arg = split_line ( $2 );
+         }
+      }
+   }
+   return ( $instruction, @arg );
+}
+
+# valid line is either single instruction which takes no arguments or
+# chain of instructions where all but last instructions take arguments
+# e.g. If you want If you want Jump to a line
+# jumps to a randomly chosen line with 25% probability
+#
+# anything what does not match instructions
+# permitted by spec will return 0
+sub is_valid_line {
+   my ( $instruction, @arg ) = split_line shift;
+   my $split_line = join "\n", ( $instruction, @arg );
+
+   my $res = defined $instructions{ $instruction }; # single instructions
+
+   if ( defined $arg_instructions{ $instruction } ) { # chained instructions
+      $_ =  pop @arg;
+      $res = defined $instructions{ $_ };
+      $res = $res && defined $arg_instructions{ $_ } foreach @arg;
+   }
+
+   return ( $res, $split_line );
+}
+
+# since the instruction set includes jumping between lines,
+# we need to know what line is to be executed next
+sub execute_line {
+   my $line_num = shift;
+   my ( $instruction, @arg ) = split /\n/, $lines[ $line_num ];
+   my ( $next_line_num, $sub );
+
+   if ( defined $instructions{ $instruction } ) { # single instructions
+      $sub = $instructions{ $instruction };
+      $next_line_num = &$sub ( $line_num );
+   } else { # chained instructions
+      # prepare for execution of chained instructions
+      unshift @arg, $instruction;
+      $_ = pop @arg;
+      my $last_instruction = $instructions{ $_ };
+
+      # check if all the conditional instructions return 1
+      my $res = 1;
+      foreach ( @arg ) {
+         $sub = $arg_instructions{ $_ };
+         $res = $res && &$sub;
+      }
+
+      if ( $res ) {
+         $sub = $last_instruction;
+         $next_line_num = &$sub ( $line_num );
+      } else {
+         $next_line_num = $line_num + 1;
+      }
+   }
+
+   return $next_line_num;
+}
+
+sub run {
+   my $next_line = 0;
+   until ( $next_line eq -1 or $next_line eq @lines ) {
+      $next_line = execute_line ( $next_line );
+   }
+   exit;
+}
+
+sub is_empty {
+   return ! $bytes[ rnd @bytes ];
+}
+
+sub isnt_empty {
+   return $bytes[ rnd @bytes ];
+}
+
+sub if_you_want {
+   return rnd 1;
+}
+
+sub go_out_if_you_want {
+  exit
+     if rnd 1;
+  return ( shift ) + 1;
+}
+
+sub jump {
+   return rnd ( @lines - 1 );
+}
+
+sub jump_up {
+   my $num = shift;
+   return -1
+      if $num eq 0;
+   return rnd ( $num - 1 );
+}
+
+sub jump_down {
+   my $num = shift;
+   return -1
+      if $num + 1 eq @lines;
+   return $num + 1 + rnd ( @lines - $num - 2 );
+}
+
+sub do_anything {
+   my $op = rnd 28;
+   
+   # 0 - nop
+   if ( $op eq 1 ) {
+      # print random byte
+      print chr ( $bytes[ rnd 3 ] );
+   } elsif ( $op eq 2 ) {
+      # beep
+      print chr ( 007 );
+   } elsif ( $op > 2 and $op <= 6 ) {
+      # set value of byte 1-4 to random value
+      $bytes[ $op - 3 ] = rnd 255;
+   } elsif ( $op > 6 and $op <= 10 ) { 
+      # clear byte 1-4
+      $bytes[ $op - 7 ] = 0;
+   } elsif ( $op > 10 and $op <= 22 ) {
+      my @bytes_num;
+      if ( $op eq 11 ) {
+         @bytes_num = ( 0, 0, 1 );
+      } elsif ( $op eq 12 ) {
+         @bytes_num = ( 1, 0, 1 );
+      } elsif ( $op eq 13 ) {
+         @bytes_num = ( 0, 0, 2 );
+      } elsif ( $op eq 14 ) {
+         @bytes_num = ( 2, 0, 2 );
+      } elsif ( $op eq 15 ) {
+         @bytes_num = ( 0, 0, 3 );
+      } elsif ( $op eq 16 ) {
+         @bytes_num = ( 3, 0, 3 );
+      } elsif ( $op eq 17 ) {
+         @bytes_num = ( 1, 1, 2 );
+      } elsif ( $op eq 18 ) {
+         @bytes_num = ( 2, 1, 2 );
+      } elsif ( $op eq 19 ) {
+         @bytes_num = ( 1, 1, 3 );
+      } elsif ( $op eq 20 ) {
+         @bytes_num = ( 3, 1, 3 );
+      } elsif ( $op eq 21 ) {
+         @bytes_num = ( 2, 2, 3 );
+      } elsif ( $op eq 22 ) {
+         @bytes_num = ( 3, 2, 3 );
+      }
+      $bytes[ $bytes_num[ 0 ] ] = ( $bytes[ $bytes_num[ 1 ] ] + $bytes[ $bytes_num[ 2 ] ] ) % 256;
+   } elsif ( $op > 22 and $op <= 26 ) {
+      # print byte 1-4
+      print chr ( $bytes[ $op - 23 ] );
+   } elsif ( $op eq 27 ) {
+      print "Hello world";
+   } elsif ( $op eq 28 ) {
+      chomp ( my $input = <> );
+      $bytes[ rnd 4 ] = $input;
+   }
+
+   return ( shift ) + 1;
+}
+
+sub do_whatever {
+   my $op_num = rnd 255;
+   do_anything 0 while ( $op_num -- );
+   return ( shift ) + 1;
+}
+
+
+
+# main
+
+while ( <> ) {
+   chomp;
+   $_ =~ s/^\s*//;
+   $_ =~ s/\s*$//; # strip whitespace
+   $_ =~ s/\s{2,}/ /g;
+   my $line = $_;
+
+   my ( $res, $split_line ) = is_valid_line $line;
+   $res or die "Invalid instruction";
+   push @lines, $split_line;
+}
+
+run;
