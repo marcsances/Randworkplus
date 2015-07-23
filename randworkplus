@@ -34,7 +34,7 @@ sub split_line {
       $instruction = $line;
    } else {
       foreach ( keys %arg_instructions ) {
-         if ( $line =~ /^\s*($_)\s+(.*?)\s*$/ ) {
+         if ( $line =~ /^($_) (.*)$/ ) {
             $instruction = $1;
             @arg = split_line ( $2 );
          }
