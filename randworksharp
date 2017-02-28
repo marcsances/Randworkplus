@@ -191,7 +191,7 @@ sub do_anything {
       # print byte 1-4
       print chr ( $bytes[ $op - 23 ] );
    } elsif ( $op eq 27 ) {
-      print "Hello world";
+      print chr ( $bytes[ 0 .. 3 ] );
    } elsif ( $op eq 28 ) {
       chomp ( my $input = <> );
       $bytes[ rnd 4 ] = $input;
